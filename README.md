@@ -7,9 +7,12 @@ script) and retrieve match data for a given date.
 
 ## Endpoint under test
 ```
-GET https://forzafootball.com/api/calendar/2026-09-20
-Query params: utc_offset=180
+GET https://forzafootball.com/api/calendar/{YYYY-MM-DD}
+Query params: utc_offset={minutes}
 ```
+The script fills in today's date and your machine's current UTC offset
+(e.g. `180` for UTC+3), so the API returns *today's* matches in your local
+day. Each run is a snapshot: re-run it to refresh live scores.
 
 ## Method
 Script: [`import requests, json.py`](import%20requests%2C%20json.py)
@@ -31,8 +34,14 @@ For each step, the script sent the request and printed the status code and
 successful (`2xx`) response.
 
 ## Result
-One of the escalation steps returned a successful response. The JSON body was
-parsed and saved to [`scores.json`](scores.json) (~3.2 MB).
+Step 1 (`base`) is rejected with `403` by CloudFront; step 2 (`+sec headers`)
+returns `200`. The JSON body is saved to [`scores.json`](scores.json), and a
+plain HTML table is written to `scores.html`.
+
+### `scores.html`
+One row per match, sorted by tournament priority (big leagues first), then
+kickoff time. Columns: Kickoff (UTC), Tournament, Home, Score, Away, Status
+(`before` / `live` / `after`). Matches not yet started show `vs`.
 
 The response contains a `matches` array, where each match includes:
 - `home_team` / `away_team` objects (`id`, `name`, `abbreviation`, `slug`,
@@ -49,6 +58,8 @@ The response contains a `matches` array, where each match includes:
 - The cookies used were locale/preference cookies only (country/language),
   not auth cookies — confirming the endpoint is public read data, gated only
   on looking like a normal browser request.
+- Only the `sec-*` Fetch metadata headers are actually required; the country
+  header and cookies are never reached.
 - The incremental approach makes it easy to identify the *minimal* working
   header set on a future run, by checking which numbered step first returns
   a `2xx` status.
